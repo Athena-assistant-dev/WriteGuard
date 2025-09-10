@@ -2,6 +2,8 @@ from plugins.base_plugin import WritePlugin
 from bs4 import BeautifulSoup
 
 class HTMLValidator(WritePlugin):
+    extensions = [".html", ".htm"]
+
     def validate(self, path, content):
         try:
             soup = BeautifulSoup(content.decode("utf-8"), "html.parser")
