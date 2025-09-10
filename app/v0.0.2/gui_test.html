@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WriteGuard Test UI</title>
+</head>
+<body>
+    <h2>Test WriteGuard API</h2>
+    <form id="writeForm">
+        <label>File Path: <input type="text" id="filepath" required></label><br>
+        <label>Content: <textarea id="content" rows="6" cols="40" required></textarea></label><br>
+        <label><input type="checkbox" id="dry_run"> Dry Run</label>
+        <label><input type="checkbox" id="preview"> Preview</label><br>
+        <button type="submit">Submit Write</button>
+    </form>
+    <pre id="output"></pre>
+
+    <script>
+        document.getElementById("writeForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            const res = await fetch("/write", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filepath: document.getElementById("filepath").value,
+                    content: document.getElementById("content").value,
+                    dry_run: document.getElementById("dry_run").checked,
+                    preview: document.getElementById("preview").checked,
+                    reason: "test_ui"
+                })
+            });
+            const json = await res.json();
+            document.getElementById("output").textContent = JSON.stringify(json, null, 2);
+        });
+    </script>
+</body>
+</html>

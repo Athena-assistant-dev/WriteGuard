@@ -1,0 +1,29 @@
+{
+  "name": "writeguard",
+  "displayName": "WriteGuard Safe Writes",
+  "description": "Secure AI-assisted file writes with versioning, diffing, rollback, and audit.",
+  "version": "0.0.2",
+  "publisher": "yourpublisher",
+  "engines": {
+    "vscode": ">=1.70.0"
+  },
+  "categories": ["Other", "AI", "Utilities"],
+  "activationEvents": ["onCommand:writeguard.runSafeWrite"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "writeguard.runSafeWrite",
+        "title": "Run Safe Write with WriteGuard"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "typescript": "^4.7.4",
+    "vscode": "^1.1.37"
+  }
+}

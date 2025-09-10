@@ -1,0 +1,31 @@
+writeguard_0.0.2
+├── DEBIAN
+│   └── control
+├── usr
+│   └── local
+│       └── bin
+│           └── writeguard
+└── etc
+    └── writeguard
+        ├── .env
+        └── writeguard.yaml
+
+# control file content (DEBIAN/control)
+Package: writeguard
+Version: 0.0.2
+Section: base
+Priority: optional
+Architecture: all
+Depends: python3, python3-pip
+Maintainer: Terry Simmons <your-email@example.com>
+Description: Secure file write system with audit, diffing, dry-run, and plugin hooks.
+
+# Postinst script suggestion
+pip3 install flask python-dotenv pyyaml redbaron jsonpatch pillow python-docx python-pptx openpyxl ruamel.yaml
+cp /etc/writeguard/.env /usr/local/bin/
+cp /etc/writeguard/writeguard.yaml /usr/local/bin/
+chmod +x /usr/local/bin/writeguard
+
+# Notes:
+- `writeguard` file in `bin/` should call `python3 /usr/local/lib/writeguard/writeguard_api.py`
+- Create package using `dpkg-deb --build writeguard_0.0.2`

@@ -1,0 +1,10 @@
+writeguard:
+  default_mode: default
+  enable_dry_run: true
+  log_level: INFO
+  protected_files:
+    - /srv/system/config.yaml
+    - /srv/secrets/credentials.json
+  limits:
+    max_diff_lines: 500
+    max_file_size_kb: 2560

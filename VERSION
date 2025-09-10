@@ -1,0 +1,4 @@
+v0.0.2
+Released: 2025-09-10
+Author: Terry Simmons
+Notes: First public-ready release with Pro tier scaffolding, plugin support, and Docker/PyPI/Fly.io distribution.
