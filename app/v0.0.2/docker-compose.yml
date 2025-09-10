@@ -9,4 +9,6 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
     restart: unless-stopped
