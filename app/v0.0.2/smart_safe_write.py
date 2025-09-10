@@ -32,7 +32,7 @@ from plugins.image_reader import after_write as image_after_write
 
 load_dotenv()
 
-BASE_DIR = os.getenv("BASE_PATH", "/srv")
+BASE_DIR = os.getenv("BASE_PATH", "./data")
 VERSION_DIR = os.environ.get("VERSION_DIR_PATH", os.path.join(BASE_DIR, "json_mem", ".versions"))
 BACKUP_DIR = os.environ.get("BACKUP_DIR_PATH", os.path.join(BASE_DIR, "json_mem", "write_backups"))
 LOG_FOLDER = os.environ.get("LOG_FOLDER_PATH", os.path.join(BASE_DIR, "json_mem", "logs"))
@@ -241,7 +241,10 @@ def smart_safe_write(filepath, content_bytes=None, override=False, reason="unspe
                 test_code_sandbox(decoded, filepath)
 
         if dry_run:
-            return {"success": True, "written": False, "reason": "Dry run enabled"}
+            if preview and not is_binary_file:
+                diff = generate_diff(old_content.decode('utf-8', errors='ignore'), content_bytes.decode('utf-8', errors='ignore'))
+                return {"success": True, "written": False, "reason": "Dry run enabled", "diff": diff, "status": "dry_run"}
+            return {"success": True, "written": False, "reason": "Dry run enabled", "status": "dry_run"}
 
         if mode == "patch" and not is_binary_file:
             if filepath.endswith(".json"):
