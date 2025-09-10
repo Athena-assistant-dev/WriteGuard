@@ -1,4 +1,6 @@
-# ✍️ WriteGuard v0.0.2
+<p align="center">
+  <img src="writeguard-logo.png" width="280" alt="WriteGuard Logo">
+</p># ✍️ WriteGuard v0.0.2
 
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/yourusername/writeguard)
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/yourusername/writeguard/test.yml)
