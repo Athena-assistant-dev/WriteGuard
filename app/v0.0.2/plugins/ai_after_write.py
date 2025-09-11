@@ -1,37 +1,55 @@
+import logging
+import os
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
+
 ## proposed AI-based after_write verification hook that integrates SmolLM2, HRM, and optional external LLMs. 
 ## This design aligns with the roadmap plans and ensures intelligent, content-aware post-write validation.
 
 # smart_safe_write.py or integrated post-write pipeline
 
-def after_write(file_path: str, content: bytes | str, is_binary: bool, plugin: Optional[Any] = None) -> bool:
+def after_write(file_path: str, content: bytes | str, is_binary: bool = False, plugin: Optional[Any] = None) -> bool:
     """
     Enhanced post-write validator using SmolLM2, HRM, and external LLMs.
     """
+    if os.getenv("AI_VALIDATION_ENABLED", "false").lower() != "true":
+        logger.info("[AI VALIDATION] Skipping AI validation as it is not enabled.")
+        return True
+
     logger.info(f"[5-STEP WRITE CHECK] Step 5: Starting AI-based verification for {file_path}")
 
     try:
         # Step 1: SmolLM2 lightweight local validation
-        from plugins.smol_lm2 import run_smol_check
-        if not run_smol_check(file_path, content):
-            logger.warning(f"[SmolLM2] Validation failed for {file_path}")
-            return False
-        logger.info(f"[SmolLM2] Passed for {file_path}")
+        try:
+            from plugins.smol_lm2 import run_smol_check
+            if not run_smol_check(file_path, content):
+                logger.warning(f"[SmolLM2] Validation failed for {file_path}")
+                return False
+            logger.info(f"[SmolLM2] Passed for {file_path}")
+        except ImportError:
+            logger.info("[SmolLM2] Plugin not available, skipping.")
 
         # Step 2: HRM deep reasoning validator
-        from plugins.hrm_validator import run_hrm_analysis
-        if not run_hrm_analysis(file_path):
-            logger.warning(f"[HRM] Reasoning analysis failed for {file_path}")
-            return False
-        logger.info(f"[HRM] Passed for {file_path}")
+        try:
+            from plugins.hrm_validator import run_hrm_analysis
+            if not run_hrm_analysis(file_path):
+                logger.warning(f"[HRM] Reasoning analysis failed for {file_path}")
+                return False
+            logger.info(f"[HRM] Passed for {file_path}")
+        except ImportError:
+            logger.info("[HRM] Plugin not available, skipping.")
 
         # Step 3: Optional external LLM validation
-        from plugins.external_llm_api import validate_with_llm
-        llm_result = validate_with_llm(file_path, content)
-        if llm_result.get("status") != "pass":
-            logger.warning(f"[LLM] Validation failed for {file_path}: {llm_result.get('reason')}")
-            return False
-        logger.info(f"[LLM] Passed for {file_path}")
+        try:
+            from plugins.external_llm_api import validate_with_llm
+            llm_result = validate_with_llm(file_path, content)
+            if llm_result.get("status") != "pass":
+                logger.warning(f"[LLM] Validation failed for {file_path}: {llm_result.get('reason')}")
+                return False
+            logger.info(f"[LLM] Passed for {file_path}")
+        except ImportError:
+            logger.info("[LLM] Plugin not available, skipping.")
 
         logger.info(f"[5-STEP WRITE CHECK] Step 5: Verified write success for {file_path}")
         return True

@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY . /app
 
-RUN pip install --no-cache-dir flask python-dotenv pyyaml redbaron jsonpatch pillow python-docx python-pptx openpyxl ruamel.yaml
+RUN pip install --no-cache-dir flask python-dotenv pyyaml redbaron jsonpatch pillow python-docx python-pptx openpyxl ruamel.yaml pytz pytesseract prance fpdf beautifulsoup4 toml PyMuPDF openapi-schema-validator
 
 EXPOSE 5050
 

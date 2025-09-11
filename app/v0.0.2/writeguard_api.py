@@ -22,9 +22,16 @@ def write_file():
     if not filepath or content is None:
         return jsonify({"error": "Missing 'filepath' or 'content'"}), 400
 
+    encoding = data.get("encoding")
+    if encoding == "base64":
+        import base64
+        content_bytes = base64.b64decode(content)
+    else:
+        content_bytes = content.encode("utf-8")
+
     result = smart_safe_write(
         filepath=filepath,
-        content_bytes=content.encode("utf-8"),
+        content_bytes=content_bytes,
         override=override,
         reason=reason,
         mode=mode,

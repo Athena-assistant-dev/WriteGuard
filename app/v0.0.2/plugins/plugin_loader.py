@@ -16,6 +16,8 @@ def safe_import_plugin(module_name, module_path):
         print(f"[PLUGIN LOADER] Error loading plugin {module_name}: {e}\n{traceback.format_exc()}")
     return None
 
+from plugins.base_plugin import WritePlugin
+
 def load_plugins():
     if not os.path.exists(PLUGIN_FOLDER):
         print(f"[PLUGIN LOADER] Plugin folder not found: {PLUGIN_FOLDER}")
@@ -27,24 +29,32 @@ def load_plugins():
             module_path = os.path.join(PLUGIN_FOLDER, filename)
             module = safe_import_plugin(module_name, module_path)
             if module:
-                LOADED_PLUGINS[module_name] = module
-                print(f"[PLUGIN LOADER] Loaded plugin: {module_name}")
+                for item_name in dir(module):
+                    item = getattr(module, item_name)
+                    if isinstance(item, type) and issubclass(item, WritePlugin) and item is not WritePlugin:
+                        LOADED_PLUGINS[module_name] = item()
+                        print(f"[PLUGIN LOADER] Loaded plugin class: {item_name}")
+                        break
 
 def validate_with_plugins(file_path, content):
+    file_ext = os.path.splitext(file_path)[-1].lower()
     for name, plugin in LOADED_PLUGINS.items():
         if hasattr(plugin, "validate"):
-            try:
-                plugin.validate(file_path, content)
-            except Exception as e:
-                raise ValueError(f"[PLUGIN VALIDATOR] {name}: {e}")
+            if not hasattr(plugin, "extensions") or file_ext in plugin.extensions:
+                try:
+                    plugin.validate(file_path, content)
+                except Exception as e:
+                    raise ValueError(f"[PLUGIN VALIDATOR] {name}: {e}")
 
-def post_write_with_plugins(file_path, content):
+def post_write_with_plugins(file_path, old_content, new_content):
+    file_ext = os.path.splitext(file_path)[-1].lower()
     for name, plugin in LOADED_PLUGINS.items():
-        if hasattr(plugin, "after_write"):
-            try:
-                plugin.after_write(file_path, content)
-            except Exception as e:
-                print(f"[PLUGIN POST-WRITE] Warning from {name}: {e}")
+        if hasattr(plugin, "post_write"):
+            if not hasattr(plugin, "extensions") or file_ext in plugin.extensions:
+                try:
+                    plugin.post_write(file_path, old_content, new_content)
+                except Exception as e:
+                    print(f"[PLUGIN POST-WRITE] Warning from {name}: {e}")
 
 def get_plugin(name):
     return LOADED_PLUGINS.get(name)

@@ -23,16 +23,9 @@ from plugins.sandbox_exec import test_code_sandbox
 from plugins.safe_file_access import safe_open
 from plugins.time_utils import get_local_timestamp
 
-# Add reader plugins
-from plugins.docx_reader import after_write as docx_after_write
-from plugins.xlsx_reader import after_write as xlsx_after_write
-from plugins.pdf_reader import after_write as pdf_after_write
-from plugins.pptx_reader import after_write as pptx_after_write
-from plugins.image_reader import after_write as image_after_write
-
 load_dotenv()
 
-BASE_DIR = os.getenv("BASE_PATH", "/srv")
+BASE_DIR = os.getenv("BASE_PATH", "./data")
 VERSION_DIR = os.environ.get("VERSION_DIR_PATH", os.path.join(BASE_DIR, "json_mem", ".versions"))
 BACKUP_DIR = os.environ.get("BACKUP_DIR_PATH", os.path.join(BASE_DIR, "json_mem", "write_backups"))
 LOG_FOLDER = os.environ.get("LOG_FOLDER_PATH", os.path.join(BASE_DIR, "json_mem", "logs"))
@@ -241,7 +234,10 @@ def smart_safe_write(filepath, content_bytes=None, override=False, reason="unspe
                 test_code_sandbox(decoded, filepath)
 
         if dry_run:
-            return {"success": True, "written": False, "reason": "Dry run enabled"}
+            if preview and not is_binary_file:
+                diff = generate_diff(old_content.decode('utf-8', errors='ignore'), content_bytes.decode('utf-8', errors='ignore'))
+                return {"success": True, "written": False, "reason": "Dry run enabled", "diff": diff, "status": "dry_run"}
+            return {"success": True, "written": False, "reason": "Dry run enabled", "status": "dry_run"}
 
         if mode == "patch" and not is_binary_file:
             if filepath.endswith(".json"):
@@ -284,23 +280,7 @@ def smart_safe_write(filepath, content_bytes=None, override=False, reason="unspe
         post_hash = compute_hash(read_back)
         verified = post_hash == compute_hash(content_bytes)
 
-        # CORRECTED BLOCK
-        if not is_binary_file:
-            decoded_content = content_bytes.decode('utf-8', errors='ignore')
-            post_write_with_plugins(filepath, decoded_content)
-
-        ext = os.path.splitext(filepath)[-1].lower()
-        decoded_content = None if is_binary_file else content_bytes.decode("utf-8")
-        if ext == ".docx":
-            docx_after_write(filepath, decoded_content)
-        elif ext == ".xlsx":
-            xlsx_after_write(filepath, decoded_content)
-        elif ext == ".pdf":
-            pdf_after_write(filepath, decoded_content)
-        elif ext == ".pptx":
-            pptx_after_write(filepath, decoded_content)
-        elif ext in [".jpg", ".jpeg", ".png"]:
-            image_after_write(filepath, decoded_content)
+        post_write_with_plugins(filepath, old_content, content_bytes)
             
         log_entry = {
             "timestamp": get_local_timestamp_safe(),

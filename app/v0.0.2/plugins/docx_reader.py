@@ -1,16 +1,21 @@
 from docx import Document
+from plugins.base_plugin import WritePlugin
 
-def read_docx(filepath):
-    try:
-        from docx import Document
-        doc = Document(filepath)
-        return "\n".join(para.text for para in doc.paragraphs)
-    except Exception as e:
-        return f"[DOCX READ ERROR] {e}"
+class DocxReaderPlugin(WritePlugin):
+    extensions = [".docx"]
 
-def after_write(filepath, content=None):
-    if filepath.endswith(".docx"):
+    def read(self, filepath):
+        try:
+            doc = Document(filepath)
+            return "\n".join(para.text for para in doc.paragraphs)
+        except Exception as e:
+            return f"[DOCX READ ERROR] {e}"
+
+    def post_write(self, filepath, old_content=None, new_content=None):
         print(f"[DOCX PLUGIN] Wrote: {filepath}")
 
+# For standalone execution/testing
 if __name__ == "__main__":
-    print(read_file("sample.docx"))
+    plugin = DocxReaderPlugin()
+    # Assuming a sample.docx exists for testing
+    # print(plugin.read("sample.docx"))

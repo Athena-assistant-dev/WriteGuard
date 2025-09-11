@@ -3,7 +3,6 @@ import os
 import base64
 import mimetypes
 from plugins.safe_file_access import safe_open, safe_isfile
-from plugins.docx_reader import read_docx
 from flask import jsonify
 
 def read_file_generic(filepath):
@@ -19,13 +18,25 @@ def read_file_generic(filepath):
                 return {"content": f.read(), "success": True, "mime": mime_type}
 
         elif ext == ".docx":
-            from plugins.docx_reader import read_docx  # Lazy import to avoid circular dependencies
-            return {
-                "content": read_docx(filepath),
-                "success": True,
-                "encoding": "text",
-                "mime": mime_type or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            }
+            from plugins.docx_reader import DocxReaderPlugin
+            plugin = DocxReaderPlugin()
+            return {"content": plugin.read(filepath), "success": True, "mime": mime_type}
+        elif ext == ".pdf":
+            from plugins.pdf_reader import PdfReaderPlugin
+            plugin = PdfReaderPlugin()
+            return {"content": plugin.read(filepath), "success": True, "mime": mime_type}
+        elif ext == ".xlsx":
+            from plugins.xlsx_reader import XlsxReaderPlugin
+            plugin = XlsxReaderPlugin()
+            return {"content": plugin.read(filepath), "success": True, "mime": mime_type}
+        elif ext == ".pptx":
+            from plugins.pptx_reader import PptxReaderPlugin
+            plugin = PptxReaderPlugin()
+            return {"content": plugin.read(filepath), "success": True, "mime": mime_type}
+        elif ext in [".jpg", ".jpeg", ".png"]:
+            from plugins.image_reader import ImageReaderPlugin
+            plugin = ImageReaderPlugin()
+            return {"content": plugin.read(filepath), "success": True, "mime": mime_type}
 
         else:
             with safe_open(filepath, "rb") as f:
