@@ -5,6 +5,8 @@ import os
 import logging
 import difflib
 import time
+import memory_service
+import validators
 
 app = Flask(__name__)
 
@@ -101,6 +103,69 @@ def write_file():
         result["pro_summary"] = summarize_diff(result["original_content"], content)
 
     return jsonify(result)
+
+# --- Memory Endpoints ---
+
+# Helper to convert SQLAlchemy model to a JSON-serializable dict
+def model_to_dict(model_instance):
+    if model_instance is None:
+        return None
+    # A simple way to convert, but be cautious with sensitive or complex fields
+    return {c.name: getattr(model_instance, c.name) for c in model_instance.__table__.columns if c.name != 'embedding'}
+
+
+@app.route("/memory", methods=["POST"])
+def add_memory_endpoint():
+    data = request.json
+    content = data.get("content")
+    metadata = data.get("metadata", {})
+
+    if not content:
+        return jsonify({"error": "Missing 'content'"}), 400
+
+    # Step 1: Validate with Cappy (placeholder)
+    validation_result = validators.cappy_validate(content)
+    if not validation_result.get("success"):
+        return jsonify({"error": "Validation failed", "details": validation_result.get("message")}), 400
+    
+    metadata['validation'] = validation_result
+
+    # Step 2: Add to memory
+    try:
+        new_memory = memory_service.add_memory(content, metadata=metadata)
+        return jsonify({"success": True, "memory_id": new_memory.id, "memory": model_to_dict(new_memory)})
+    except Exception as e:
+        logger.error(f"Error adding memory: {e}")
+        return jsonify({"error": "Failed to add memory", "details": str(e)}), 500
+
+@app.route("/memory/search", methods=["POST"])
+def search_memory_endpoint():
+    data = request.json
+    query = data.get("query")
+    limit = data.get("limit", 5)
+
+    if not query:
+        return jsonify({"error": "Missing 'query'"}), 400
+
+    try:
+        results = memory_service.search_memory(query, limit=limit)
+        return jsonify({"success": True, "results": [model_to_dict(r) for r in results]})
+    except Exception as e:
+        logger.error(f"Error searching memory: {e}")
+        return jsonify({"error": "Failed to search memory", "details": str(e)}), 500
+
+@app.route("/memory/<int:memory_id>", methods=["GET"])
+def get_memory_endpoint(memory_id):
+    try:
+        memory = memory_service.get_memory(memory_id)
+        if memory:
+            return jsonify({"success": True, "memory": model_to_dict(memory)})
+        else:
+            return jsonify({"error": "Memory not found"}), 404
+    except Exception as e:
+        logger.error(f"Error getting memory {memory_id}: {e}")
+        return jsonify({"error": "Failed to get memory", "details": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5050)), debug=True)

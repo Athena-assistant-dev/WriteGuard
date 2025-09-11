@@ -22,6 +22,8 @@ from plugins.path_guard import is_allowed_path
 from plugins.sandbox_exec import test_code_sandbox
 from plugins.safe_file_access import safe_open
 from plugins.time_utils import get_local_timestamp
+import validators
+import memory_service
 
 load_dotenv()
 
@@ -153,58 +155,59 @@ def backup_file(filepath: str, backup_dir: str):
 
 def prune_backups(filepath: str, backup_dir: str):
     """
-    Prune backups for the given file based on age:
-      - Keep 4 most recent backups for files ≤ 7 days old
-      - Keep 2 backups for files 7–14 days old
-      - Keep 1 backup for files older than 14 days
+    Prune backups for the given file based on a tiered age-based retention policy.
+
+    Retention rules:
+    - Keep the 4 most recent backups for files up to 7 days old.
+    - Keep the 2 most recent backups for files between 7 and 14 days old.
+    - Keep the single most recent backup for files older than 14 days.
     """
     try:
         base_name = os.path.basename(filepath)
         rel_path = os.path.relpath(filepath, "/")
         path_hash = hashlib.md5(rel_path.encode("utf-8")).hexdigest()[:8]
 
-        backups = []
+        # Find all backups for the given file
+        all_backups = []
+        prefix = f"{base_name}_{path_hash}_"
         for f in os.listdir(backup_dir):
-            if f.startswith(f"{base_name}_{path_hash}_") and f.endswith(".bak"):
+            if f.startswith(prefix) and f.endswith(".bak"):
                 try:
-                    ts_str = f.rsplit("_", 1)[-1].replace(".bak", "")
+                    # Robustly extract timestamp by removing prefix and suffix
+                    ts_str = f[len(prefix):-len(".bak")]
                     ts = datetime.strptime(ts_str, "%Y-%m-%d_%H-%M-%S")
-                    backups.append((ts, f))
-                except Exception:
-                    continue
+                    all_backups.append({"ts": ts, "name": f, "path": os.path.join(backup_dir, f)})
+                except (ValueError, IndexError):
+                    continue  # Ignore files with malformed timestamps
 
-        # Sort by timestamp (newest first)
-        backups.sort(key=lambda x: x[0], reverse=True)
+        # Sort backups by timestamp, newest first
+        all_backups.sort(key=lambda x: x["ts"], reverse=True)
 
         now = get_local_timestamp_safe(as_datetime=True)
+        
+        # Make all backup timestamps timezone-aware to match `now` before comparison.
+        for backup in all_backups:
+            if backup['ts'].tzinfo is None and now.tzinfo is not None:
+                backup['ts'] = backup['ts'].replace(tzinfo=now.tzinfo)
 
-        to_keep = []
-        to_delete = []
-        for ts, fname in backups:
-            age_days = (now - ts).days
-            if age_days <= 7:
-                limit = 4
-            elif age_days <= 14:
-                limit = 2
-            else:
-                limit = 1
+        recent = [b for b in all_backups if (now - b["ts"]).days <= 7]
+        medium = [b for b in all_backups if 7 < (now - b["ts"]).days <= 14]
+        old = [b for b in all_backups if (now - b["ts"]).days > 14]
 
-            current_group = [b for b in backups if (now - b[0]).days == age_days]
-            if len(current_group) > limit:
-                to_delete.extend(current_group[limit:])
-                to_keep.extend(current_group[:limit])
-            else:
-                to_keep.extend(current_group)
+        # Determine which backups to keep
+        keep = set()
+        keep.update(b["name"] for b in recent[:4])
+        keep.update(b["name"] for b in medium[:2])
+        keep.update(b["name"] for b in old[:1])
 
-        # Deduplicate keep list
-        keep_set = {f for _, f in to_keep}
-        for _, fname in backups:
-            if fname not in keep_set:
+        # Prune backups that are not in the keep set
+        for backup in all_backups:
+            if backup["name"] not in keep:
                 try:
-                    os.remove(os.path.join(backup_dir, fname))
-                    logger.info(f"[Prune] Removed old backup: {fname}")
-                except Exception as e:
-                    logger.error(f"[Prune] Failed to remove {fname}: {e}")
+                    os.remove(backup["path"])
+                    logger.info(f"[Prune] Removed old backup: {backup['name']}")
+                except OSError as e:
+                    logger.error(f"[Prune] Failed to remove {backup['name']}: {e}")
 
     except Exception as e:
         logger.error(f"[Prune] Error pruning backups for {filepath}: {e}")
@@ -230,6 +233,15 @@ def smart_safe_write(filepath, content_bytes=None, override=False, reason="unspe
             decoded = content_bytes.decode("utf-8", errors="ignore")
             scan_for_risk(filepath, decoded)
             validate_with_plugins(filepath, decoded)
+
+            # --- ADD LLM VALIDATION ---
+            llm_validation_result = validators.cappy_validate(decoded)
+            if not llm_validation_result.get("success"):
+                # Returning an error if the validation fails
+                return {"success": False, "error": "LLM validation failed", "details": llm_validation_result.get("message")}
+            logger.info(f"LLM validation successful: {llm_validation_result.get('message')}")
+            # --- END LLM VALIDATION ---
+            
             if preview:
                 test_code_sandbox(decoded, filepath)
 
@@ -299,9 +311,17 @@ def smart_safe_write(filepath, content_bytes=None, override=False, reason="unspe
             with open(diff_path, 'w', encoding='utf-8') as df:
                 df.write(generate_diff(old_content.decode('utf-8', errors='ignore'), content_bytes.decode('utf-8', errors='ignore')))
 
-        rotate_log()
-        with open(LOG_PATH, "a") as log_file:
-            log_file.write(json.dumps(log_entry) + "\n")
+        # --- REFACTOR LOGGING ---
+        # Create a summary string for the main content
+        log_summary = f"File written: {filepath}, Verified: {verified}, Reason: {reason}"
+        
+        # Add the log entry to the memory service
+        try:
+            memory_service.add_memory(log_summary, metadata=log_entry)
+            logger.info(f"Successfully logged write event for {filepath} to memory service.")
+        except Exception as e:
+            logger.error(f"Failed to log write event for {filepath} to memory service: {e}")
+        # --- END REFACTOR ---
 
         return {"success": True, "written": True, "verified": verified, "mode": mode}
 
